@@ -1,6 +1,12 @@
 import time
 import random
 import threading
+import logging
+import queue
+
+from threading import ThreadError
+
+logger = logging.getLogger("App.Behaviour")
 
 
 class Behaviours:
@@ -44,30 +50,34 @@ class Behaviours:
                     thread.start()
 
     def stop(self):
-        print("Stopping Behaviours...")
+        logger.info("Stopping Behaviours...")
         self.stop_event.set()  # Signal the thread to stop
 
     def run_erc20_balance_behaviour(self):
         try:
             while not self.stop_event.is_set():
                 balance = self.w3.get_balance()
-                print(f"Balance is:  {balance} LINK")
+                logger.info(f"Balance is:  {balance} LINK")
                 time.sleep(10)
+        except ThreadError as e:
+            logger.error("Thread Exception inside balance behaviour" + str(e))
         except Exception as e:
-            print("Exception:" + str(e))
+            logger.error("Exception:" + str(e))
 
     def run_alphabet_behaviour(self):
         try:
             while not self.stop_event.is_set():
                 selected_words = random.sample(self.alphabet, 2)
-                # check for fullness of queue
-                self.outbox_queue.put(
-                    {
-                        "method": "Message",
-                        "type": "alphabet",
-                        "words": selected_words,
-                    }
-                )
-                time.sleep(10)
+                if not self.outbox_queue.full():
+                    self.outbox_queue.put(
+                        {
+                            "method": "Message",
+                            "type": "alphabet",
+                            "words": selected_words,
+                        }
+                    )
+                time.sleep(2)
+        except ThreadError as e:
+            logger.error("Thread exception inside alphabet behaviour" + str(e))
         except Exception as e:
-            print("Exception:" + str(e))
+            logger.error("Exception:" + str(e))

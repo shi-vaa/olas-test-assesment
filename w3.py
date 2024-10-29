@@ -1,6 +1,17 @@
-from web3 import Web3
-from dotenv import load_dotenv
 import os
+import logging
+
+from web3 import Web3
+from web3.exceptions import (
+    ProviderConnectionError,
+    Web3RPCError,
+    TransactionIndexingInProgress,
+    InvalidTransaction,
+    TransactionNotFound,
+)
+from dotenv import load_dotenv
+
+logger = logging.getLogger("App.W3")
 
 load_dotenv()
 
@@ -15,8 +26,6 @@ class W3:
         self.to_address = os.getenv("TO_ADDRESS")
 
         self.private_key = os.getenv("PRIVATE_KEY")
-
-        self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
 
         self.erc20_abi = [
             {
@@ -41,10 +50,18 @@ class W3:
                 "type": "function",
             },
         ]
+        try:
+            self.w3 = Web3(Web3.HTTPProvider(self.rpc_url))
 
-        self.erc20_contract = self.w3.eth.contract(
-            address=self.erc20_contract_address, abi=self.erc20_abi
-        )
+            self.erc20_contract = self.w3.eth.contract(
+                address=self.erc20_contract_address, abi=self.erc20_abi
+            )
+        except ProviderConnectionError as e:
+            logger.error("Provider connection error" + str(e))
+        except Web3RPCError as e:
+            logger.error("web3 rpc error" + str(e))
+        except Exception as e:
+            logger.error("Unknown error" + str(e))
 
     def get_balance(self):
         try:
@@ -52,8 +69,10 @@ class W3:
             decimals = 18
             formatted_balance = balance / (10**decimals)
             return formatted_balance
+        except Web3RPCError as e:
+            logger.error("web3 rpc error" + str(e))
         except Exception as e:
-            print("Couldnot fetch balance" + str(e))
+            logger.error("Couldnot fetch balance" + str(e))
 
     def transfer(self):
         try:
@@ -78,13 +97,24 @@ class W3:
 
                 txn_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
 
-                # txn_receipt = self.w3.eth.get_transaction_receipt(txn_hash)
+                logger.info(f"Transaction sent with hash: {txn_hash.hex()}")
 
-                print(
-                    f"Transaction sent with hash: {txn_hash.hex()}"
-                )
+                txn_receipt = self.w3.eth.get_transaction_receipt(txn_hash)
+
+                if txn_receipt.status == 1:
+                    logger.info(
+                        "Funds transfered from"
+                        + self.from_address
+                        + "to"
+                        + self.to_address
+                    )
             else:
-                print("Not enough funds to transfer")
-
+                logger.info("Not enough funds to transfer from " + self.from_address)
+        except InvalidTransaction as e:
+            logger.error("Invalid transaction" + str(e))
+        except TransactionNotFound as e:
+            logger.error("Transaction lookup failed" + str(e))
+        except TransactionIndexingInProgress as e:
+            logger.error("Transaction submitted but yet to be indexed" + str(e))
         except Exception as e:
-            print("Exception while transfer" + str(e))
+            logger.error("Exception while transfer" + str(e))

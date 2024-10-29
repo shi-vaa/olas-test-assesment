@@ -1,5 +1,12 @@
 import threading
 import json
+import logging
+import queue
+
+from threading import ThreadError
+from web3.exceptions import Web3Exception
+
+logger = logging.getLogger("App.Handler")
 
 
 class Handlers:
@@ -15,29 +22,32 @@ class Handlers:
         thread.daemon = True
         self.threads.append(thread)
         thread.start()
-        
 
     def stop(self):
-        print("Stopping Handlers...")
+        logger.info("Stopping Handlers...")
         self.stop_event.set()  # Signal the thread to stop
 
     def process_inbound_msgs(self):
         try:
             while not self.stop_event.is_set():
                 if not self.inbox_queue.empty():
-                    item = self.inbox_queue.get()
+                    req_data = self.inbox_queue.get()
                 else:
                     continue
                 self.inbox_queue.task_done()
-                req_data = json.loads(item)
                 msg_type = req_data.get("type")
                 if msg_type == "alphabet":
                     self.run_alphabet_handler(req_data["words"], req_data)
+        except Web3Exception as e:
+            logger.error("Web3 exception occured" + str(e))
+        except ThreadError as e:
+            logger.error("Thread exception while processing inbox messages" + str(e))
         except Exception as e:
-            print("Exception:" + str(e))
+            logger.error("Exception:" + str(e))
 
     def run_alphabet_handler(self, words, req_data):
+
         if "hello" in words:
-            print("Found hello:"+ json.dumps(req_data))
+            logger.info("Found hello:" + json.dumps(req_data))
         if "crypto" in words:
             self.w3.transfer()
