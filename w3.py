@@ -1,5 +1,6 @@
 import os
 import logging
+import time
 
 from web3 import Web3
 from web3.exceptions import (
@@ -63,9 +64,9 @@ class W3:
         except Exception as e:
             logger.error("Unknown error" + str(e))
 
-    def get_balance(self):
+    def get_balance(self,address):
         try:
-            balance = self.erc20_contract.functions.balanceOf(self.from_address).call()
+            balance = self.erc20_contract.functions.balanceOf(address).call()
             decimals = 18
             formatted_balance = balance / (10**decimals)
             return formatted_balance
@@ -74,20 +75,20 @@ class W3:
         except Exception as e:
             logger.error("Couldnot fetch balance" + str(e))
 
-    def transfer(self):
+    def transfer(self,from_address,to_address):
         try:
             amount = self.w3.to_wei(1, "ether")
 
-            if self.get_balance() >= 1.0:
+            if self.get_balance(self.from_address) >= 1.0:
                 transaction = self.erc20_contract.functions.transfer(
-                    self.to_address, amount
+                    to_address, amount
                 ).build_transaction(
                     {
-                        "from": self.from_address,
+                        "from": from_address,
                         "gas": 200000,
                         "gasPrice": self.w3.to_wei("50", "gwei"),
                         "nonce": self.w3.eth.get_transaction_count(self.from_address),
-                        "chainId": 97,
+                        "chainId": 80002,
                     }
                 )
 
@@ -98,6 +99,8 @@ class W3:
                 txn_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
 
                 logger.info(f"Transaction sent with hash: {txn_hash.hex()}")
+                
+                time.sleep(5) # wait for 5 seconds until transaction receipt is generated
 
                 txn_receipt = self.w3.eth.get_transaction_receipt(txn_hash)
 

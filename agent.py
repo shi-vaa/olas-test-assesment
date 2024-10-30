@@ -7,6 +7,7 @@ import time
 import logging
 
 from dotenv import load_dotenv
+from json import JSONDecodeError
 
 from base_agent import BaseAgent
 from behaviours import Behaviours
@@ -15,19 +16,10 @@ from w3 import W3
 
 load_dotenv()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(), logging.FileHandler("app.log")],
-)
-
-logger = logging.getLogger("App")
-
 inbox_queue = queue.Queue()
 outbox_queue = queue.Queue()
 
 
-# thread safe stack with each instance for every client connection
 class Agent(BaseAgent):
     def __init__(self):
         self.w3 = W3()
@@ -48,6 +40,11 @@ class Agent(BaseAgent):
         self.behaviours.stop()  # Signal the behavious to stop
 
     def handle_request(self, request):
+        """
+        Simple Generic Router to handle JSON RPC requests
+        If a request of type message is received it will be pushed
+        to inbox queue
+        """
         try:
             req_data = json.loads(request)
             method = req_data.get("method")
@@ -58,7 +55,7 @@ class Agent(BaseAgent):
                 return self.register_behaviour(*params)
             if method == "Message":
                 inbox_queue.put(req_data)
-                logger.info(f"Received: {request.decode('utf-8')}")
+                logger.info(f"Received: {request}")
                 return {"result": "Message delivered to inbox"}
             else:
                 return {"error": "Method not found"}
@@ -88,18 +85,19 @@ class Agent(BaseAgent):
 
 
 class JsonRpcServer:
-    def __init__(self, host="127.0.0.1", testing=False):
+    def __init__(
+        self,
+        port,
+        external_agent_port,
+        host="127.0.0.1",
+    ):
         try:
 
             self.agent = Agent()
 
-            self.key = input("Please input agent number(1/2):") if not testing else 1
             self.host = host
-            self.port = (
-                int(os.getenv("SERVER_1_PORT"))
-                if int(self.key) == 1
-                else int(os.getenv("SERVER_2_PORT"))
-            )
+            self.port = port
+            self.external_agent_port = external_agent_port
 
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -127,13 +125,15 @@ class JsonRpcServer:
             logger.error("Socket connection error" + str(e))
 
     def push_outbox_messages(self, client_socket):
+        """
+        Pushing all messages on outbox queue to connected
+        """
         try:
             with client_socket:
                 while True:
                     if not outbox_queue.empty():
                         item = outbox_queue.get()
                         outbox_queue.task_done()
-                        logging.error("sending: " + json.dumps(item))
                         client_socket.sendall(json.dumps(item).encode())
                         time.sleep(2)
         except socket.error as e:
@@ -142,6 +142,7 @@ class JsonRpcServer:
             client_socket.close()
 
     def process_inbound_messages(self, connection):
+        """ """
         with connection:
             try:
                 while True:
@@ -150,21 +151,26 @@ class JsonRpcServer:
                     if not message:
                         break  # Break if no message (client disconnected)
                     logger.info(f"Received: {message.decode('utf-8')}")
+            except JSONDecodeError as e:
+                logger.error("Invalid Json received" + str(e))
             except queue.Full:
                 logger.error("Inbox Queue full" + str(e))
             except socket.error as e:
                 logger.error("connection lost")
+            except Exception as e:
+                logger.error(
+                    "Unknown exception while processing inbound messages" + str(e)
+                )
             finally:
                 connection.close()
 
-    def connect_to_external_agent(self, max_retries=5):
+    def connect_to_external_agent(self, port, max_retries=5):
+        """
+        Trying to establish a socket client connection with agent 2
+        """
+
         time.sleep(10)  # wait until we start agent 2
         attempt = 0
-        port = self.port = (
-            int(os.getenv("SERVER_2_PORT"))
-            if int(self.key) == 1
-            else int(os.getenv("SERVER_1_PORT"))
-        )
         while attempt < max_retries:
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -181,9 +187,14 @@ class JsonRpcServer:
         return None
 
     def run(self):
+        """
+        With each socket connection, messages will pushed out
+        and incoming messages will be processed in
+        individual threads
+        """
         self.agent.start()
 
-        connection = self.connect_to_external_agent(7)
+        connection = self.connect_to_external_agent(self.external_agent_port, 7)
         if connection:
             connection_thread = threading.Thread(
                 target=self.process_inbound_messages, args=(connection,)
@@ -211,5 +222,23 @@ class JsonRpcServer:
 
 
 if __name__ == "__main__":
-    server = JsonRpcServer()
+
+    key = input("Please input agent number(1/2):")
+
+    if int(key) == 1:
+        port = int(os.getenv("SERVER_1_PORT"))
+        external_agent_port = int(os.getenv("SERVER_2_PORT"))
+    else:
+        port = int(os.getenv("SERVER_2_PORT"))
+        external_agent_port = int(os.getenv("SERVER_1_PORT"))
+
+    log_file_name = "app1.log" if key == "1" else "app2.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(name)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler(), logging.FileHandler(log_file_name)],
+    )
+    logger = logging.getLogger("App")
+
+    server = JsonRpcServer(port=port, external_agent_port=external_agent_port)
     server.run()

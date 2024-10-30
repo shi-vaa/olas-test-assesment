@@ -56,7 +56,7 @@ class Behaviours:
     def run_erc20_balance_behaviour(self):
         try:
             while not self.stop_event.is_set():
-                balance = self.w3.get_balance()
+                balance = self.w3.get_balance(self.w3.from_address)
                 logger.info(f"Balance is:  {balance} LINK")
                 time.sleep(10)
         except ThreadError as e:

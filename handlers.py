@@ -50,4 +50,5 @@ class Handlers:
         if "hello" in words:
             logger.info("Found hello:" + json.dumps(req_data))
         if "crypto" in words:
-            self.w3.transfer()
+            logger.info("Found crypto initiating transfer:" + json.dumps(req_data))
+            self.w3.transfer(self.w3.from_address, self.w3.to_address)
