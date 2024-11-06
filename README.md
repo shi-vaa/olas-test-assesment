@@ -51,6 +51,7 @@ pip3 install -r requirements.txt
 - Setup the .env file
 - You can rename the .sample_env to .env and add the constants to the file
 - Tenderly virtual nets can also be setup
+- virtual testnet explorer used for testing https://dashboard.tenderly.co/explorer/vnet/72e9563f-e09d-4a16-802c-df2c01ffd10a
 
 #### Starting the agents
 
