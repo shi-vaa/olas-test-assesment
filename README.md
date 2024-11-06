@@ -50,20 +50,21 @@ pip3 install -r requirements.txt
 
 - Setup the .env file
 - You can rename the .sample_env to .env and add the constants to the file
+- Tenderly virtual nets can also be setup
 
 #### Starting the agents
 
 1. Agent 1
 
     ``` 
-    python3 agent.py
+    python3 app.py
     ```
     - In the console input the key as 1
 
 2. Agent 2 
     - in a new terminal
     ```
-    python3 agent.py
+    python3 app.py
     ```
     - In the console input the key as 2
 
