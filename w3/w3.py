@@ -20,6 +20,7 @@ load_dotenv()
 class W3:
     def __init__(self):
 
+        self.chain_id = int(os.getenv("CHAIN_ID"))
         self.rpc_url = os.getenv("RPC_URL")
         self.erc20_contract_address = os.getenv("CONTRACT_ADDRESS")
 
@@ -64,7 +65,7 @@ class W3:
         except Exception as e:
             logger.error("Unknown error" + str(e))
 
-    def get_balance(self,address):
+    def get_balance(self, address):
         try:
             balance = self.erc20_contract.functions.balanceOf(address).call()
             decimals = 18
@@ -75,7 +76,7 @@ class W3:
         except Exception as e:
             logger.error("Couldnot fetch balance" + str(e))
 
-    def transfer(self,from_address,to_address):
+    def transfer(self, from_address, to_address):
         try:
             amount = self.w3.to_wei(1, "ether")
 
@@ -88,7 +89,7 @@ class W3:
                         "gas": 200000,
                         "gasPrice": self.w3.to_wei("50", "gwei"),
                         "nonce": self.w3.eth.get_transaction_count(self.from_address),
-                        "chainId": 80002,
+                        "chainId": self.chain_id,
                     }
                 )
 
@@ -99,8 +100,10 @@ class W3:
                 txn_hash = self.w3.eth.send_raw_transaction(signed_txn.raw_transaction)
 
                 logger.info(f"Transaction sent with hash: {txn_hash.hex()}")
-                
-                time.sleep(5) # wait for 5 seconds until transaction receipt is generated
+
+                time.sleep(
+                    5
+                )  # wait for 5 seconds until transaction receipt is generated
 
                 txn_receipt = self.w3.eth.get_transaction_receipt(txn_hash)
 

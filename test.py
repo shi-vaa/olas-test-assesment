@@ -41,6 +41,10 @@ def get_socket_connection(host, port):
 
 def test_alphabet_behaviour():
     connection = get_socket_connection(host, server1_port)
+    if not connection:
+        pytest.fail(
+            "Connection failed: Please run agent app, Integration tests will fail"
+        )
     response = connection.recv(1024)
     connection.close()
     res_json = json.loads(response.decode("utf-8"))
@@ -55,8 +59,8 @@ def test_balance_behaviour():
         total_lines = len(lines)
         found = 0
         if total_lines > 0:
-            last_10_lines = lines[-(total_lines if total_lines < 10 else 10) :]
-            for line in last_10_lines:
+            last_20_lines = lines[-(total_lines if total_lines < 20 else 20) :]
+            for line in last_20_lines:
                 if "Balance is:" in line:
                     line = line.split(":", 1)[1]
                     balance = float(line)
@@ -75,11 +79,15 @@ def test_hello_alphabet_behaviour():
         "type": "alphabet",
         "words": ["hello", test_word],
     }
-
     connection = get_socket_connection(host, server1_port)
+    if not connection:
+        pytest.fail(
+            "Connection failed: Please run agent app, Integration tests will fail"
+        )
+
     connection.send(json.dumps(message).encode("utf-8"))
     connection.close()
-    time.sleep(2)
+    time.sleep(3)  # wait until file stream gets updated
 
     with open("app1.log", "r") as f:
         msg = {}
@@ -89,7 +97,7 @@ def test_hello_alphabet_behaviour():
         if total_lines > 0:
             last_10_lines = lines[-(total_lines if total_lines < 10 else 10) :]
             for line in last_10_lines:
-                if test_word in line:
+                if test_word in line and "Found hello:" in line:
                     msg = json.loads(line.split(":", 1)[1])
                     assert test_word in msg["words"]
                     found = 1
@@ -101,7 +109,7 @@ def test_hello_alphabet_behaviour():
 
 def test_crypto_behaviour():
     with open("app1.log", "r") as f:
-        test_word = str(int(random.random()))
+        test_word = str(random.random())
         message = {
             "method": "Message",
             "type": "alphabet",
@@ -110,8 +118,13 @@ def test_crypto_behaviour():
         found = 0
 
         connection = get_socket_connection(host, server1_port)
+        if not connection:
+            pytest.fail(
+                "Connection failed: Please run agent app, Integration tests will fail"
+            )
         connection.sendall(json.dumps(message).encode("utf-8"))
         connection.close()
+        time.sleep(3)  # wait until file stream gets updated
 
         lines = f.readlines()
         total_lines = len(lines)
@@ -119,7 +132,7 @@ def test_crypto_behaviour():
         if total_lines > 0:
             last_10_lines = lines[-(total_lines if total_lines < 10 else 10) :]
             for line in last_10_lines:
-                if test_word in line:
+                if test_word in line and "Found crypto initiating transfer:" in line:
                     found = 1
                     f.close()
                     break

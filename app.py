@@ -8,6 +8,7 @@ import json
 
 from json import JSONDecodeError
 
+import utils
 from agent import Agent
 
 
@@ -151,22 +152,24 @@ class JsonRpcServer:
 
 if __name__ == "__main__":
 
-    key = input("Please input agent number(1/2):")
+    server1_port = int(os.getenv("SERVER_1_PORT"))
+    server2_port = int(os.getenv("SERVER_2_PORT"))
 
-    if int(key) == 1:
-        port = int(os.getenv("SERVER_1_PORT"))
-        external_agent_port = int(os.getenv("SERVER_2_PORT"))
-    else:
-        port = int(os.getenv("SERVER_2_PORT"))
-        external_agent_port = int(os.getenv("SERVER_1_PORT"))
+    port = (
+        server2_port
+        if utils.is_port_active(host="127.0.0.1", port=server1_port)
+        else server1_port
+    )
 
-    log_file_name = "app1.log" if key == "1" else "app2.log"
+    external_agent_port = server2_port if port == server1_port else server1_port
+
+    log_file_name = "app1.log" if port == server1_port else "app2.log"
     logging.basicConfig(
         level=logging.INFO,
         format="%(name)s - %(levelname)s - %(message)s",
         handlers=[
             logging.StreamHandler(),
-            logging.FileHandler(log_file_name),
+            logging.FileHandler(log_file_name, mode="w"),
         ],
     )
     logger = logging.getLogger("App")
